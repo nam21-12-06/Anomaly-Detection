@@ -1,0 +1,26 @@
+# Project Configuration for Anomaly-Vision
+
+dataset:
+  name: "mvtec"
+  root_dir: "./data/mvtec_anomaly_detection"
+  category: "bottle" # Options: bottle, cable, capsule, carpet, grid, hazelnut, leather, metal_nut, pill, screw, tile, toothbrush, transistor, wood, zipper
+  image_size: [256, 256]
+  crop_size: [224, 224]
+  batch_size: 16
+  num_workers: 4
+
+autoencoder:
+  latent_dim: 128
+  learning_rate: 0.001
+  num_epochs: 50
+  checkpoint_dir: "./checkpoints/autoencoder"
+
+patchcore:
+  backbone: "wide_resnet50_2" # Options: resnet18, resnet50, wide_resnet50_2, vit_base_patch16_224
+  layers: ["layer2", "layer3"] # Intermediate layers to extract feature maps
+  coreset_sampling_ratio: 0.01 # Percentage of memory bank samples retained
+  n_neighbors: 9
+
+visualization:
+  save_dir: "./results/visualizations"
+  heatmap_alpha: 0.5
