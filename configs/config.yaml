@@ -2,7 +2,7 @@
 
 dataset:
   name: "mvtec"
-  root_dir: "./data/mvtec_anomaly_detection"
+  root_dir: "./data"
   category: "bottle" # Options: bottle, cable, capsule, carpet, grid, hazelnut, leather, metal_nut, pill, screw, tile, toothbrush, transistor, wood, zipper
   image_size: [256, 256]
   crop_size: [224, 224]

@@ -27,6 +27,7 @@ wheels/
 # Virtual Environments
 venv/
 .venv/
+.env/
 env/
 ENV/
 env.bak/
@@ -43,10 +44,10 @@ venv.bak/
 *.swo
 
 # Datasets and Large Assets
-data/
-!data/.gitkeep
-!data/README.md
-datasets/
+/data/
+!/data/.gitkeep
+!/data/README.md
+/datasets/
 *.tar.xz
 *.tar.gz
 *.zip
