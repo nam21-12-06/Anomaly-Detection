@@ -1,12 +1,31 @@
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from PIL import Image
 
 from src.data.transforms import get_transforms
+
+MVTEC_OBJECT_CATEGORIES = [
+    "bottle",
+    "cable",
+    "capsule",
+    "hazelnut",
+    "metal_nut",
+    "pill",
+    "screw",
+    "toothbrush",
+    "transistor",
+    "zipper",
+]
+
+MVTEC_TEXTURE_CATEGORIES = ["carpet", "grid", "leather", "tile", "wood"]
+
+MVTEC_ALL_CATEGORIES = sorted(MVTEC_OBJECT_CATEGORIES + MVTEC_TEXTURE_CATEGORIES)
 
 
 class MVTecDataset(Dataset):
@@ -189,3 +208,82 @@ def get_mvtec_dataloader(
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
     )
+
+
+def get_mvtec_summary(data_dir: Union[str, Path] = "./data") -> pd.DataFrame:
+    """
+    Scans the dataset directory and returns a DataFrame summarizing all categories,
+    split distributions, defect classes, and anomaly ratios.
+    """
+    data_path = Path(data_dir)
+    records = []
+
+    categories = sorted([d.name for d in data_path.iterdir() if d.is_dir() and not d.name.startswith(".")])
+
+    for category in categories:
+        cat_type = "Object" if category in MVTEC_OBJECT_CATEGORIES else "Texture"
+        train_good = data_path / category / "train" / "good"
+        test_path = data_path / category / "test"
+
+        train_count = len(list(train_good.glob("*.png"))) if train_good.exists() else 0
+        test_good = test_path / "good"
+        test_good_count = len(list(test_good.glob("*.png"))) if test_good.exists() else 0
+
+        defect_dirs = [d for d in test_path.iterdir() if d.is_dir() and d.name != "good"] if test_path.exists() else []
+        defect_count = sum(len(list(d.glob("*.png"))) for d in defect_dirs)
+        defect_types_count = len(defect_dirs)
+        defect_names = ", ".join(sorted([d.name for d in defect_dirs]))
+
+        total_images = train_count + test_good_count + defect_count
+        test_total = test_good_count + defect_count
+        anomaly_ratio = (defect_count / test_total * 100.0) if test_total > 0 else 0.0
+
+        records.append({
+            "Category": category,
+            "Type": cat_type,
+            "Train Normal": train_count,
+            "Test Normal": test_good_count,
+            "Test Defect": defect_count,
+            "Test Total": test_total,
+            "Total Images": total_images,
+            "Defect Classes": defect_types_count,
+            "Test Anomaly Ratio (%)": round(anomaly_ratio, 1),
+            "Defect Names": defect_names,
+        })
+
+    return pd.DataFrame(records)
+
+
+def compute_defect_area_statistics(data_dir: Union[str, Path] = "./data") -> pd.DataFrame:
+    """
+    Evaluates all ground truth binary masks across the dataset to compute
+    defect area surface coverage ratios (% of image pixels).
+    """
+    data_path = Path(data_dir)
+    records = []
+
+    categories = sorted([d.name for d in data_path.iterdir() if d.is_dir() and not d.name.startswith(".")])
+
+    for category in categories:
+        cat_type = "Object" if category in MVTEC_OBJECT_CATEGORIES else "Texture"
+        gt_path = data_path / category / "ground_truth"
+        if not gt_path.exists():
+            continue
+
+        for defect_dir in gt_path.iterdir():
+            if not defect_dir.is_dir():
+                continue
+            dtype = defect_dir.name
+            for mask_file in defect_dir.glob("*.png"):
+                mask = np.array(Image.open(mask_file))
+                ratio = float((mask > 0).mean() * 100.0)
+                records.append({
+                    "Category": category,
+                    "Type": cat_type,
+                    "Defect Type": dtype,
+                    "Area Ratio (%)": ratio,
+                    "Mask Path": str(mask_file),
+                })
+
+    return pd.DataFrame(records)
+
