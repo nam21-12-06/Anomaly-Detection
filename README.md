@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python Version" />
   <img src="https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch" />
   <img src="https://img.shields.io/badge/CUDA-Enabled-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="CUDA Enabled" />
-  <img src="https://img.shields.io/badge/Tests-26%20Passing-brightgreen?style=for-the-badge" alt="Tests Passing" />
+  <img src="https://img.shields.io/badge/Tests-36%20Passing-brightgreen?style=for-the-badge" alt="Tests Passing" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License" />
 </p>
 
@@ -31,7 +31,11 @@ In industrial manufacturing, anomalies such as cracks, scratches, structural def
 - At test time, deviations from this distribution are detected, scored, and localized down to individual pixels.
 
 <div style="background-color: #f6f8fa; border-left: 4px solid #0969da; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
-  <strong>Current Phase:</strong> Phase 1 &amp; 2 Complete. ConvAE &amp; ConvVAE evaluated on MVTec <em>bottle</em>: Image-AUROC <strong>AE 93.3%</strong> / <strong>VAE 89.1%</strong>, Pixel-AUROC <strong>AE 82.7%</strong> / <strong>VAE 80.1%</strong>, PRO <strong>AE 59.2%</strong> / <strong>VAE 51.5%</strong>. TensorBoard logging added. <strong>Phase 3 Next:</strong> ResNet Feature Extraction + kNN.
+  <strong>Current Progress:</strong> Phases 1, 2, and 3 are Complete. Evaluated on MVTec <em>bottle</em>:
+  <br />- <strong>ConvAE:</strong> Image-AUROC 93.3%, Pixel-AUROC 82.7%, PRO Score 59.2%
+  <br />- <strong>ConvVAE:</strong> Image-AUROC 89.1%, Pixel-AUROC 80.1%, PRO Score 51.5%
+  <br />- <strong>kNN-ResNet18 (k=3):</strong> Image-AUROC <strong>99.6%</strong>, Pixel-AUROC <strong>97.6%</strong>, PRO Score <strong>93.8%</strong>
+  <br /><strong>Phase 4 Next:</strong> PatchCore Coreset Subsampling.
 </div>
 
 ---
@@ -80,30 +84,30 @@ Inference Image
     <tr>
       <td><b>Phase 2</b></td>
       <td>Reconstruction Baseline</td>
-      <td>ConvAutoencoder & ConvVAE with L1 + SSIM loss, KL divergence, and training script with resume</td>
+      <td>ConvAutoencoder & ConvVAE with L1 + SSIM loss, KL divergence, and training resume</td>
       <td>Reconstruction Error, Image-AUROC</td>
-      <td><b>&#x2705; Complete</b> &mdash; AE: 93.3% / VAE: 89.1% Image-AUROC on <em>bottle</em></td>
+      <td><b>Complete</b> (AE: 93.3% / VAE: 89.1% Image-AUROC on <em>bottle</em>)</td>
     </tr>
     <tr>
       <td><b>Phase 3</b></td>
       <td>Feature Embedding</td>
-      <td>Pretrained ResNet intermediate activations + kNN anomaly scoring</td>
-      <td>Image-AUROC</td>
-      <td>Pending</td>
+      <td>Pretrained ResNet forward-hook representations + Memory Bank k-NN scoring</td>
+      <td>Image-AUROC, Pixel-AUROC, PRO</td>
+      <td><b>Complete</b> (kNN-ResNet18: 99.6% Image-AUROC, 97.6% Pixel-AUROC, 93.8% PRO on <em>bottle</em>)</td>
     </tr>
     <tr>
       <td><b>Phase 4</b></td>
       <td>PatchCore (SOTA)</td>
-      <td>Patch-level features, Coreset subsampling, Memory Bank</td>
+      <td>Patch-level features, Greedy farthest-point coreset subsampling, Memory Bank</td>
       <td>Image-AUROC, Pixel-AUROC</td>
       <td>Pending</td>
     </tr>
     <tr>
       <td><b>Phase 5</b></td>
       <td>Localization & Metrics</td>
-      <td>Gaussian-smoothed anomaly heatmaps, Per-Region Overlap (PRO)</td>
+      <td>Gaussian-smoothed anomaly heatmaps, Per-Region Overlap (PRO) across categories</td>
       <td>PRO Metric</td>
-      <td>Pending</td>
+      <td>Partially Done (PRO metric active)</td>
     </tr>
     <tr>
       <td><b>Phase 6</b></td>
@@ -117,47 +121,70 @@ Inference Image
 
 ---
 
-## Baseline Architecture & Theory (Autoencoders & VAEs)
+## Core Formulations & Baseline Architecture
 
-Phase 2 establishes baseline reconstruction models to demonstrate how unsupervised identity mapping exposes industrial anomalies.
+### 1. Reconstruction Baselines (Autoencoder & VAE)
 
-### 1. Conceptual Premise
-During training on normal data $\mathcal{X}_{\text{normal}}$, the network optimizes parameters $\theta$ to compress images into a bottleneck latent space and reconstruct them accurately. 
+#### Anomaly Residual Map
+$$\text{Map}(u, v) = \frac{1}{C} \sum_{c=1}^C |x_c(u, v) - \hat{x}_c(u, v)|$$
+- $x$: Original input image normalized to $[0.0, 1.0]$.
+- $\hat{x}$: Reconstructed image produced by the decoder.
+- $C$: Number of channels ($C=3$).
 
-When a test image containing an anomaly $x_{\text{anomaly}}$ is fed into the network:
-1. The encoder projects the image into the latent space.
-2. Because the decoder has only observed normal structures, it projects the latent representation back onto the learned manifold of normality.
-3. The decoder attempts to "repair" or replace the defect with normal texture or geometry.
-4. Subtracting the reconstruction from the original image yields large residual errors precisely at the anomalous coordinates:
-$$\text{Anomaly Map}(u, v) = \frac{1}{C} \sum_{c=1}^C |x_c(u, v) - \hat{x}_c(u, v)|$$
+#### Composite Reconstruction Loss (L1 + SSIM)
+$$\mathcal{L}_{\text{recon}} = \alpha \mathcal{L}_1(x, \hat{x}) + (1 - \alpha)(1 - \text{SSIM}(x, \hat{x}))$$
+- $\alpha = 0.85$: Balances pixel-wise absolute error ($\mathcal{L}_1$) with structural similarity.
+- $\text{SSIM}$: Evaluates localized luminance, contrast, and structural correlation over 11x11 2D Gaussian kernels to prevent blurred edges.
 
-### 2. Standard Convolutional Autoencoder (AE)
-- **Encoder (`ConvEncoder`):** 5 progressive convolutional blocks with stride 2, BatchNorm, and LeakyReLU(0.2) downsampling from $(3, 224, 224)$ to $(512, 7, 7)$, followed by linear projection to latent dimension $z \in \mathbb{R}^{d}$ (e.g., $d=128$).
-- **Decoder (`ConvDecoder`):** Symmetric transposed convolutions upsampling from latent vector $z$ back to $(3, 224, 224)$ with a final `Sigmoid` activation bounding output pixels to $[0.0, 1.0]$.
-
-### 3. Variational Autoencoder (VAE)
-Standard autoencoders can produce irregular latent spaces with empty gaps, leading to inconsistent reconstructions. The Variational Autoencoder imposes a probabilistic prior $p(z) = \mathcal{N}(0, I)$ over the latent space:
-- The encoder predicts distribution parameters: mean $\mu(x)$ and log-variance $\log \sigma^2(x)$.
-- **Reparameterization Trick:** Enables backpropagation through stochastic sampling:
-$$z = \mu(x) + \epsilon \odot \sigma(x), \quad \epsilon \sim \mathcal{N}(0, I)$$
-- At inference time, evaluation is deterministic using $z = \mu(x)$.
-
-### 4. Loss Formulation: L1 + SSIM vs. MSE
-Standard Mean Squared Error (MSE) penalizes errors quadratically:
-$$\mathcal{L}_{\text{MSE}} = \frac{1}{N} \sum (x - \hat{x})^2$$
-MSE tends to average high-frequency details, resulting in blurry reconstructions that obscure fine boundaries.
-
-To preserve sharp edges and surface textures, we implement a composite loss combining **L1 Loss** and **Structural Similarity (SSIM)**:
-$$\mathcal{L}_{\text{recon}} = \alpha \mathcal{L}_1(x, \hat{x}) + (1 - \alpha) (1 - \text{SSIM}(x, \hat{x}))$$
-where $\alpha = 0.85$, and SSIM is evaluated over localized 2D Gaussian kernels comparing luminance, contrast, and structural correlation.
-
-For the VAE, the total objective includes the Kullback-Leibler (KL) divergence penalty:
+#### Variational Objective (VAE)
 $$\mathcal{L}_{\text{VAE}} = \mathcal{L}_{\text{recon}} + \beta \cdot D_{\text{KL}}(q_\phi(z|x) \parallel p(z))$$
 $$D_{\text{KL}} = -\frac{1}{2} \sum_{j=1}^d \left(1 + \log \sigma_j^2 - \mu_j^2 - \sigma_j^2\right)$$
+- $\mu, \sigma^2$: Mean and variance predicted by the encoder for latent dimension $d=128$.
+- Reparameterization during training: $z = \mu + \epsilon \odot \sigma$ with $\epsilon \sim \mathcal{N}(0, I)$. Evaluated deterministically at test time via $z = \mu$.
+- $\beta = 0.0001$: Weight of the Kullback-Leibler divergence regularizer.
 
-### 5. Anomaly Scoring
-- **Pixel-Level Localization:** Channel-averaged absolute residual smoothed with Gaussian filtering.
-- **Image-Level Anomaly Score:** Average of the top 5% highest residual error pixels across the image, preventing global background pixels from diluting localized defect signals.
+#### Image-Level Anomaly Score (Reconstruction)
+$$S_{\text{image}} = \frac{1}{|K|} \sum_{(u, v) \in K} \text{Map}(u, v)$$
+- $K$: Set of spatial coordinates corresponding to the top 5% highest residual error pixels, preventing normal background pixels from diluting localized defect signals.
+
+---
+
+### 2. Deep Feature Embedding & k-NN Memory Bank
+
+#### Multi-Scale Intermediate Feature Alignment
+$$f(p) = \left[ f_{\text{layer2}}(p) \;\parallel\; \text{Upsample}(f_{\text{layer3}}(p)) \right] \in \mathbb{R}^D$$
+- $f_{\text{layer2}}(p) \in \mathbb{R}^{128}$: Intermediate activations captured via PyTorch forward hooks from ResNet-18 `layer2` (spatial grid 28x28 for 224x224 input).
+- $f_{\text{layer3}}(p) \in \mathbb{R}^{256}$: Activations from `layer3` (14x14 grid), bilinearly upsampled to 28x28 to align spatial resolution.
+- $D = 128 + 256 = 384$: Fused feature embedding dimension for each of the $P = 28 \times 28 = 784$ spatial patches.
+
+#### Patch Anomaly Scoring via k-NN Euclidean Distance
+$$s(p) = \frac{1}{k} \sum_{j=1}^k \|f(p) - m_{(j)}\|_2$$
+- $f(p) \in \mathbb{R}^{384}$: Query patch embedding of the test image at coordinate $p$.
+- $m_{(j)} \in \mathcal{M}$: The $j$-th nearest neighbor vector within the normal training Memory Bank $\mathcal{M}$ ($N_{\text{bank}} = 163,856$ vectors for *bottle*).
+- $\|\cdot\|_2$: Euclidean distance ($L_2$ norm) in the unconstrained 384-dimensional feature space.
+- $k$: Number of nearest neighbors averaged (default: $k=1$ or $k=3$).
+
+#### Image-Level Anomaly Score (Feature-Based)
+$$S_{\text{image}} = \max_{p \in \{1, \dots, P\}} s(p)$$
+- The image anomaly score is defined as the maximum patch distance across the entire image.
+
+#### Pixel-Level Anomaly Heatmap (Bilinear Upsample + Gaussian Spatial Smoothing)
+$$\mathcal{A}(u, v) = \left( s_{\text{upsampled}} \ast G_\sigma \right)(u, v) = \sum_{u', v'} s_{\text{upsampled}}(u', v') \cdot \frac{1}{2\pi\sigma^2} \exp\left(-\frac{(u - u')^2 + (v - v')^2}{2\sigma^2}\right)$$
+- $s_{\text{upsampled}}$: Patch score map $s(p)$ bilinearly interpolated from $28 \times 28$ to full resolution $224 \times 224$.
+- $G_\sigma$: 2D Gaussian filter kernel.
+- $\sigma = 4.0$: Standard deviation of the Gaussian filter. Eliminates discrete patch boundary grid artifacts while preserving true defect boundaries.
+
+---
+
+## Quantitative Benchmarks (`bottle` Category)
+
+Evaluated on the MVTec AD *bottle* test set (83 images: 20 normal, 63 defective across `broken_large`, `broken_small`, `contamination`):
+
+| Model Architecture | Image AUROC | Pixel AUROC | PRO Score (FPR <= 0.3) | Inference Latency |
+|---|---|---|---|---|
+| Convolutional Autoencoder (AE) | 93.33% | 82.74% | 59.18% | ~5 ms / image |
+| Convolutional VAE (VAE) | 89.13% | 80.12% | 51.48% | ~5 ms / image |
+| **kNN-ResNet18 (k=3)** | **99.60%** | **97.62%** | **93.80%** | **13.46s / 83 images (6.2 img/s)** |
 
 ---
 
@@ -169,40 +196,32 @@ Anomaly Detection/
 |   `-- config.yaml                 # Central experiment configurations
 |-- data/                           # MVTec AD dataset directory (15 categories)
 |   |-- bottle/
-|   |-- cable/
 |   `-- ...
 |-- notebooks/
 |   |-- 01_dataset_exploration.ipynb# Multi-category EDA & morphometry analysis
-|   |-- 02_autoencoder_baseline.ipynb# AE & VAE evaluation: AUROC, ROC curves, galleries
+|   |-- 02_autoencoder_baseline.ipynb# AE & VAE quantitative evaluation
 |   `-- README.md
-|-- results/                        # Exported figures and evaluation artifacts
-|   |-- baseline_evaluation/        # AUROC plots, score distributions, galleries
+|-- results/                        # Exported figures, CSVs, and localization heatmaps
+|   |-- feature_knn/                # k-NN benchmark CSVs and localization plots
+|   |-- bottle_baseline_benchmark.csv
 |   `-- eda_gallery.png
 |-- scripts/
-|   |-- train_autoencoder.py        # Training script for AE & VAE with resume & tqdm
-|   |-- evaluate_autoencoder.py     # Evaluation script for AE & VAE (AUROC & PRO)
-|   `-- README.md
+|   |-- train_autoencoder.py        # AE & VAE training with resume, tqdm, & TensorBoard
+|   |-- evaluate_autoencoder.py     # AE & VAE evaluation suite (AUROC & PRO)
+|   |-- build_feature_bank.py       # Offline ResNet feature memory bank builder
+|   `-- evaluate_feature_knn.py     # k-NN anomaly evaluation & heatmap export
 |-- src/
 |   |-- data/
 |   |   |-- mvtec.py                # Dataset loaders and statistical aggregators
 |   |   `-- transforms.py           # Standardized image & mask transformations
 |   |-- models/
 |   |   |-- autoencoder.py          # ConvAutoencoder and ConvVAE classes
+|   |   |-- feature_extractor.py    # ResNetExtractor & FeatureMemoryBank
 |   |   `-- losses.py               # SSIMLoss, AutoencoderLoss, VAELoss
 |   `-- utils/
 |       |-- metrics.py              # AUROC, Pixel AUROC, and PRO score computation
 |       `-- visualization.py        # EDA plots, mask overlays, defect galleries
-|-- tests/
-|   |-- conftest.py                 # Pytest configuration
-|   |-- data/                       # Dataset & DataLoader test suite
-|   |   |-- test_dataset.py
-|   |   `-- test_summary.py
-|   |-- models/                     # Architecture & Loss test suite
-|   |   |-- test_autoencoder.py
-|   |   |-- test_vae.py
-|   |   `-- test_losses.py
-|   `-- utils/                      # Evaluation metrics test suite
-|       `-- test_metrics.py
+|-- tests/                          # 36 automated Pytest test cases across all modules
 |-- anomaly_vision_6week_plan.md    # 6-week progressive learning roadmap
 |-- proposal.md                     # Research scope and development roadmap
 |-- requirements.txt                # Python package dependencies
@@ -215,97 +234,50 @@ Anomaly Detection/
 
 ### 1. Environment Setup
 
-Clone the repository and set up the virtual environment:
-
 ```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv .env
-
-# Activate virtual environment
-# Windows (PowerShell):
 .\.env\Scripts\Activate.ps1
-# Windows (Git Bash):
-source .env/Scripts/activate
-# Linux / macOS:
-source .env/bin/activate
 
-# Install dependencies
+# Install package dependencies
 pip install -r requirements.txt
 ```
 
-If utilizing an NVIDIA GPU with CUDA:
+### 2. Run Automated Test Suite (36 Tests)
 
 ```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 --force-reinstall
-```
-
-### 2. Verify Data Pipeline & Multi-Category EDA
-
-Launch Jupyter and open the exploratory notebook:
-
-```bash
-jupyter notebook notebooks/01_dataset_exploration.ipynb
-```
-
-### 3. Training Baseline Models (AE & VAE)
-
-The training script `scripts/train_autoencoder.py` supports standard Autoencoder and Variational Autoencoder, GPU acceleration, real-time `tqdm` progress metrics, and a training resume mechanism.
-
-#### Train Standard Autoencoder (AE):
-```bash
-python scripts/train_autoencoder.py --model ae --category bottle --epochs 50 --batch_size 16 --lr 1e-3
-```
-
-#### Train Variational Autoencoder (VAE):
-```bash
-python scripts/train_autoencoder.py --model vae --category bottle --epochs 50 --batch_size 16 --lr 1e-3
-```
-
-#### Resume Interrupted Training:
-You can resume training from the latest checkpoint automatically:
-```bash
-python scripts/train_autoencoder.py --model ae --category bottle --epochs 50 --resume auto
-```
-Or specify an exact checkpoint file:
-```bash
-python scripts/train_autoencoder.py --model ae --category bottle --resume checkpoints/bottle_ae/last.pth
-```
-
-Checkpoints are organized by category and model type under `checkpoints/{category}_{model}/`:
-- `best.pth`: Weights achieving the lowest validation reconstruction loss.
-- `last.pth`: Checkpoint containing current model, optimizer, and scheduler states for seamless resumption.
-- `epoch_{N}.pth`: Periodic checkpoints saved every `--save_freq` epochs.
-
-### 4. Run Automated Test Suite
-
-The test suite is organized into modular folders (`tests/models/`, `tests/data/`, and `tests/utils/`):
-
-```bash
-# Run all tests across the entire repository (26 tests)
+# Run full repository test suite
 python -m pytest tests/ -v
 
-# Run only model and loss tests
+# Run model and loss unit tests
 python -m pytest tests/models/ -v
-
-# Run only dataset and dataloader tests
-python -m pytest tests/data/ -v
-
-# Run only evaluation metric tests
-python -m pytest tests/utils/ -v
 ```
 
----
+### 3. Reconstruction Baseline Pipeline (AE & VAE)
 
-## Evaluation Protocol
+```bash
+# Train Autoencoder
+python scripts/train_autoencoder.py --model ae --category bottle --epochs 50 --batch_size 16 --lr 1e-3
 
-Model performance is evaluated across two primary granularities:
+# Train VAE
+python scripts/train_autoencoder.py --model vae --category bottle --epochs 50 --batch_size 16 --lr 1e-3
 
-1. **Image-Level Detection:**
-   - **AUROC (Area Under the Receiver Operating Characteristic Curve):** Evaluates binary discriminative capacity between normal and anomalous samples independent of classification threshold.
+# Resume training from latest checkpoint
+python scripts/train_autoencoder.py --model ae --category bottle --resume auto
 
-2. **Pixel-Level Localization:**
-   - **Pixel-AUROC:** Measures per-pixel anomaly segmentation accuracy against ground-truth defect masks.
-   - **PRO (Per-Region Overlap):** Computes average overlap across individual connected defect components, weighting small and large defects equally.
+# Evaluate trained Autoencoder
+python scripts/evaluate_autoencoder.py --category bottle --model ae
+```
+
+### 4. Deep Feature Extraction & k-NN Memory Bank Pipeline
+
+```bash
+# Step 1: Extract normal features and serialize memory bank
+python scripts/build_feature_bank.py --category bottle --backbone resnet18 --batch_size 16
+
+# Step 2: Run k-NN evaluation and generate localization plots
+python scripts/evaluate_feature_knn.py --category bottle --backbone resnet18 --n_neighbors 3
+```
 
 ---
 
