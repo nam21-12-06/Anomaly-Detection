@@ -148,3 +148,17 @@ def test_feature_memory_bank_save_and_load():
         new_bank.load(save_path)
         assert len(new_bank) == 50
         assert torch.allclose(bank.bank.cpu(), new_bank.bank.cpu())
+
+
+def test_feature_memory_bank_coreset_subsampling():
+    bank = FeatureMemoryBank()
+    normal_features = torch.randn(100, 32)
+    bank.fit(normal_features)
+
+    # Subsample 10%
+    coreset_bank = bank.subsample_coreset(sampling_ratio=0.1, random_state=42)
+    assert len(coreset_bank) == 10
+    assert coreset_bank.bank.shape == (10, 32)
+    assert coreset_bank.metadata["coreset_sampling_ratio"] == 0.1
+    assert coreset_bank.metadata["coreset_samples_count"] == 10
+    assert coreset_bank.metadata["original_samples_count"] == 100
