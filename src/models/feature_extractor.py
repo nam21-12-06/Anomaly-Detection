@@ -3,8 +3,9 @@ Deep Feature Extractor & Memory Bank for Visual Anomaly Detection.
 
 Implements:
 1. ResNetExtractor: PyTorch forward-hook based multi-scale feature extractor
-   from pretrained ResNet backbones (layer2 + layer3 spatial features).
-2. FeatureMemoryBank: Storage, serialization, and nearest-neighbor distance
+   from pretrained ResNet / WideResNet backbones (layer2 + layer3 spatial features)
+   with optional local neighborhood patch aggregation (3x3 average pooling).
+2. FeatureMemoryBank: Storage, serialization, coreset subsampling, and nearest-neighbor distance
    scoring engine for normal representation modeling.
 """
 
@@ -25,11 +26,16 @@ class ResNetExtractor(nn.Module):
     Uses non-invasive PyTorch forward hooks on intermediate residual blocks
     (default: 'layer2' and 'layer3') to preserve spatial resolution (28x28 and 14x14
     for a 224x224 input) rather than collapsing into a global average-pooled vector.
+    Optionally applies local neighborhood patch aggregation (kernel_size 3, stride 1, padding 1)
+    to incorporate surrounding spatial context as in PatchCore (Roth et al., CVPR 2022).
 
     Args:
-        backbone: Name of torchvision backbone ('resnet18' or 'resnet50').
+        backbone: Name of torchvision backbone ('resnet18', 'resnet50', or 'wide_resnet50_2').
         pretrained: If True, loads official ImageNet-1K pretrained weights.
         layers: Tuple of layer names to attach hooks to.
+        patch_pooling: If True, applies local average pooling to aggregate 3x3 patch neighborhoods.
+        pooling_kernel: Spatial kernel size for local patch neighborhood aggregation (default: 3).
+        weights_dir: Directory to cache model weights.
         device: Torch device to host the model on.
     """
 
@@ -38,12 +44,16 @@ class ResNetExtractor(nn.Module):
         backbone: str = "resnet18",
         pretrained: bool = True,
         layers: Tuple[str, ...] = ("layer2", "layer3"),
+        patch_pooling: bool = False,
+        pooling_kernel: int = 3,
         weights_dir: Optional[Union[str, Path]] = None,
         device: Optional[Union[str, torch.device]] = None,
     ):
         super().__init__()
         self.backbone_name = backbone.lower()
         self.layers = layers
+        self.patch_pooling = patch_pooling
+        self.pooling_kernel = pooling_kernel
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Configure local hub directory to avoid storing weights on C:\ drive
@@ -60,8 +70,12 @@ class ResNetExtractor(nn.Module):
             self.model = models.resnet18(weights=weights)
         elif self.backbone_name == "resnet50":
             self.model = models.resnet50(weights=weights)
+        elif self.backbone_name == "wide_resnet50_2":
+            self.model = models.wide_resnet50_2(weights=weights)
         else:
-            raise ValueError(f"Unsupported backbone '{backbone}'. Choose 'resnet18' or 'resnet50'.")
+            raise ValueError(
+                f"Unsupported backbone '{backbone}'. Choose 'resnet18', 'resnet50', or 'wide_resnet50_2'."
+            )
 
         # Freeze all backbone parameters - purely inference / feature extraction
         for param in self.model.parameters():
@@ -102,13 +116,15 @@ class ResNetExtractor(nn.Module):
         dim_map = {
             "resnet18": {"layer1": 64, "layer2": 128, "layer3": 256, "layer4": 512},
             "resnet50": {"layer1": 256, "layer2": 512, "layer3": 1024, "layer4": 2048},
+            "wide_resnet50_2": {"layer1": 256, "layer2": 512, "layer3": 1024, "layer4": 2048},
         }
         return sum(dim_map[self.backbone_name][l] for l in self.layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass: passes image through backbone, extracts intermediate maps,
-        bilinearly aligns spatial dimensions to the shallowest hook layer, and concatenates channels.
+        bilinearly aligns spatial dimensions to the shallowest hook layer, concatenates channels,
+        and optionally applies local neighborhood average pooling.
 
         Args:
             x: Input images tensor of shape (B, 3, H, W).
@@ -133,8 +149,14 @@ class ResNetExtractor(nn.Module):
                 feat = F.interpolate(feat, size=target_size, mode="bilinear", align_corners=False)
             aligned_features.append(feat)
 
-        # Concatenate along channel dimension
-        fused = torch.cat(aligned_features, dim=1)  # (B, embedding_dim, H_out, W_out)
+        # Concatenate along channel dimension: (B, embedding_dim, H_out, W_out)
+        fused = torch.cat(aligned_features, dim=1)
+
+        # Local Neighborhood Aggregation (kernel_size 3, stride 1, padding 1 preserves H_out, W_out)
+        if self.patch_pooling:
+            pad = self.pooling_kernel // 2
+            fused = F.avg_pool2d(fused, kernel_size=self.pooling_kernel, stride=1, padding=pad)
+
         return fused
 
     def get_patch_embeddings(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
@@ -169,6 +191,7 @@ class FeatureMemoryBank:
     Features:
         - Batch-friendly Euclidean / Cosine distance computation.
         - Patch-level distance maps and image-level max anomaly scores.
+        - Coreset subsampling via Greedy Farthest-Point algorithm.
         - Serialization to disk (.pt).
     """
 
@@ -194,6 +217,47 @@ class FeatureMemoryBank:
 
     def __len__(self) -> int:
         return self.bank.shape[0] if self.bank is not None else 0
+
+    def subsample_coreset(
+        self,
+        sampling_ratio: float = 0.1,
+        n_samples: Optional[int] = None,
+        dimension_reduction: Optional[int] = 128,
+        random_state: int = 42,
+    ) -> "FeatureMemoryBank":
+        """
+        Subsamples memory bank into a representative coreset using GreedyCoresetSampler.
+
+        Args:
+            sampling_ratio: Percentage of samples to retain (e.g. 0.01 for 1%, 0.10 for 10%).
+            n_samples: Explicit target count of coreset samples (overrides sampling_ratio).
+            dimension_reduction: Optional dimension reduction for fast distance evaluation.
+            random_state: Seed for reproducible coreset selection.
+
+        Returns:
+            A new FeatureMemoryBank containing only the subsampled coreset vectors.
+        """
+        if self.bank is None or len(self.bank) == 0:
+            raise RuntimeError("Cannot subsample an empty memory bank.")
+
+        from src.models.coreset import GreedyCoresetSampler
+
+        sampler = GreedyCoresetSampler(
+            sampling_ratio=sampling_ratio,
+            n_samples=n_samples,
+            dimension_reduction=dimension_reduction,
+            random_state=random_state,
+            device=self.device,
+        )
+        coreset_features, _ = sampler.sample(self.bank)
+
+        new_bank = FeatureMemoryBank(device=self.device)
+        new_bank.fit(coreset_features)
+        new_bank.metadata = dict(self.metadata)
+        new_bank.metadata["coreset_sampling_ratio"] = sampling_ratio
+        new_bank.metadata["coreset_samples_count"] = len(new_bank)
+        new_bank.metadata["original_samples_count"] = len(self.bank)
+        return new_bank
 
     def predict_distance(
         self,
@@ -360,4 +424,3 @@ def interpolate_and_smooth_anomaly_maps(
         smoothed = upsampled
 
     return smoothed
-
