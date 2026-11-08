@@ -127,25 +127,34 @@ Inference Image
 ### 1. Reconstruction Baselines (Autoencoder & VAE)
 
 #### Anomaly Residual Map
+
 $$\text{Map}(u, v) = \frac{1}{C} \sum_{c=1}^C |x_c(u, v) - \hat{x}_c(u, v)|$$
+
 - $x$: Original input image normalized to $[0.0, 1.0]$.
 - $\hat{x}$: Reconstructed image produced by the decoder.
 - $C$: Number of channels ($C=3$).
 
 #### Composite Reconstruction Loss (L1 + SSIM)
+
 $$\mathcal{L}_{\text{recon}} = \alpha \mathcal{L}_1(x, \hat{x}) + (1 - \alpha)(1 - \text{SSIM}(x, \hat{x}))$$
+
 - $\alpha = 0.85$: Balances pixel-wise absolute error ($\mathcal{L}_1$) with structural similarity.
 - $\text{SSIM}$: Evaluates localized luminance, contrast, and structural correlation over 11x11 2D Gaussian kernels to prevent blurred edges.
 
 #### Variational Objective (VAE)
+
 $$\mathcal{L}_{\text{VAE}} = \mathcal{L}_{\text{recon}} + \beta \cdot D_{\text{KL}}(q_\phi(z|x) \parallel p(z))$$
+
 $$D_{\text{KL}} = -\frac{1}{2} \sum_{j=1}^d \left(1 + \log \sigma_j^2 - \mu_j^2 - \sigma_j^2\right)$$
+
 - $\mu, \sigma^2$: Mean and variance predicted by the encoder for latent dimension $d=128$.
 - Reparameterization during training: $z = \mu + \epsilon \odot \sigma$ with $\epsilon \sim \mathcal{N}(0, I)$. Evaluated deterministically at test time via $z = \mu$.
 - $\beta = 0.0001$: Weight of the Kullback-Leibler divergence regularizer.
 
 #### Image-Level Anomaly Score (Reconstruction)
+
 $$S_{\text{image}} = \frac{1}{|K|} \sum_{(u, v) \in K} \text{Map}(u, v)$$
+
 - $K$: Set of spatial coordinates corresponding to the top 5% highest residual error pixels, preventing normal background pixels from diluting localized defect signals.
 
 ---
@@ -153,24 +162,32 @@ $$S_{\text{image}} = \frac{1}{|K|} \sum_{(u, v) \in K} \text{Map}(u, v)$$
 ### 2. Deep Feature Embedding & k-NN Memory Bank
 
 #### Multi-Scale Intermediate Feature Alignment
+
 $$f(p) = \left[ f_{\text{layer2}}(p) \;\parallel\; \text{Upsample}(f_{\text{layer3}}(p)) \right] \in \mathbb{R}^D$$
+
 - $f_{\text{layer2}}(p) \in \mathbb{R}^{128}$: Intermediate activations captured via PyTorch forward hooks from ResNet-18 `layer2` (spatial grid 28x28 for 224x224 input).
 - $f_{\text{layer3}}(p) \in \mathbb{R}^{256}$: Activations from `layer3` (14x14 grid), bilinearly upsampled to 28x28 to align spatial resolution.
 - $D = 128 + 256 = 384$: Fused feature embedding dimension for each of the $P = 28 \times 28 = 784$ spatial patches.
 
 #### Patch Anomaly Scoring via k-NN Euclidean Distance
+
 $$s(p) = \frac{1}{k} \sum_{j=1}^k \|f(p) - m_{(j)}\|_2$$
+
 - $f(p) \in \mathbb{R}^{384}$: Query patch embedding of the test image at coordinate $p$.
 - $m_{(j)} \in \mathcal{M}$: The $j$-th nearest neighbor vector within the normal training Memory Bank $\mathcal{M}$ ($N_{\text{bank}} = 163,856$ vectors for *bottle*).
 - $\|\cdot\|_2$: Euclidean distance ($L_2$ norm) in the unconstrained 384-dimensional feature space.
 - $k$: Number of nearest neighbors averaged (default: $k=1$ or $k=3$).
 
 #### Image-Level Anomaly Score (Feature-Based)
+
 $$S_{\text{image}} = \max_{p \in \{1, \dots, P\}} s(p)$$
+
 - The image anomaly score is defined as the maximum patch distance across the entire image.
 
 #### Pixel-Level Anomaly Heatmap (Bilinear Upsample + Gaussian Spatial Smoothing)
+
 $$\mathcal{A}(u, v) = \left( s_{\text{upsampled}} \ast G_\sigma \right)(u, v) = \sum_{u', v'} s_{\text{upsampled}}(u', v') \cdot \frac{1}{2\pi\sigma^2} \exp\left(-\frac{(u - u')^2 + (v - v')^2}{2\sigma^2}\right)$$
+
 - $s_{\text{upsampled}}$: Patch score map $s(p)$ bilinearly interpolated from $28 \times 28$ to full resolution $224 \times 224$.
 - $G_\sigma$: 2D Gaussian filter kernel.
 - $\sigma = 4.0$: Standard deviation of the Gaussian filter. Eliminates discrete patch boundary grid artifacts while preserving true defect boundaries.
@@ -180,22 +197,35 @@ $$\mathcal{A}(u, v) = \left( s_{\text{upsampled}} \ast G_\sigma \right)(u, v) = 
 ### 3. PatchCore: SOTA Memory Bank & Coreset Subsampling
 
 #### Multi-Scale Patch Representation with Neighborhood Context
+
 To capture spatial context and build invariance against minor spatial translations, multi-scale feature maps from `layer2` and `layer3` are aggregated locally using $K \times K$ average pooling ($K=3$, padding 1, stride 1):
+
 $$p(u, v) = \frac{1}{K^2} \sum_{i=-\lfloor K/2 \rfloor}^{\lfloor K/2 \rfloor} \sum_{j=-\lfloor K/2 \rfloor}^{\lfloor K/2 \rfloor} F(u+i, v+j) \in \mathbb{R}^{384}$$
+
 - $F(u, v) = [f_{\text{layer2}}(u, v) \parallel \text{Upsample}(f_{\text{layer3}}(u, v))] \in \mathbb{R}^{384}$.
 - Aggregating across all normal training images yields the full memory bank $\mathcal{M}$.
 
 #### Minimax Facility Location Coreset Subsampling
+
 To eliminate memory overhead and accelerate inference, a subset $\mathcal{M}_C \subset \mathcal{M}$ of fraction $\gamma = 0.01$ (1%) is constructed to minimize the maximum distance from any nominal patch in $\mathcal{M}$ to its nearest coreset point:
+
 $$\mathcal{M}_C^* = \arg\min_{\mathcal{M}_C \subset \mathcal{M}} \max_{m \in \mathcal{M}} \min_{c \in \mathcal{M}_C} \|m - c\|_2$$
-- **Greedy Farthest-Point Iteration:** Initialized with $c_1 \sim \mathcal{M}$, iteratively selecting $c_t = \arg\max_{m \in \mathcal{M}} \min_{c \in \mathcal{M}_C} \|m - c\|_2$.
+
+- **Greedy Farthest-Point Iteration:** Initialized with $c_1 \sim \mathcal{M}$, iteratively selecting:
+
+$$c_t = \arg\max_{m \in \mathcal{M}} \min_{c \in \mathcal{M}_C} \|m - c\|_2$$
+
 - **Distance Caching:** Maintains a running minimum distance vector across iterations with $O(|\mathcal{M}|)$ update complexity per step.
 - **Johnson-Lindenstrauss Random Projection:** Vectors are projected to $d=128$ dimensions via $R \sim \mathcal{N}(0, 1/d)$ during coreset search, preserving Euclidean distances while reducing selection time to ~3 seconds.
 
 #### Softmax Neighborhood Density Re-weighting
+
 For query image $x_{\text{test}}$, let $p^* = \arg\max_p s(p)$ denote the maximally anomalous patch with distance $s^* = s(p^*)$, and let $\mathcal{N}_b(p^*) \subset \mathcal{M}_C$ be its $b=9$ nearest coreset neighbors:
+
 $$w = 1 - \frac{\exp(s^*)}{\sum_{c \in \mathcal{N}_b(p^*)} \exp(\|p^* - c\|_2)} = 1 - \frac{1}{\sum_{c \in \mathcal{N}_b(p^*)} \exp(s^* - \|p^* - c\|_2)}$$
+
 $$S_{\text{image}} = w \cdot s^*$$
+
 - In dense nominal regions, large neighbor sums drive $w \to 1.0$.
 - In sparse boundary regions of normal variation, small neighbor sums scale $w \to 0.0$, suppressing boundary false alarms.
 
@@ -220,12 +250,12 @@ Evaluated on the official MVTec AD test sets across rigid object (`bottle`) and 
 ### 1. MVTec AD Defect Exploration
 Representative defect types and ground-truth localization masks across dataset categories:
 
-![MVTec AD Defect Exploration](results/eda_gallery.png)
+![MVTec AD Defect Exploration](assets/eda_gallery.png)
 
 ### 2. PatchCore Defect Localization (1% Coreset Subsampling)
 Pixel-level defect localization and overlay masks generated by PatchCore on object (`bottle`) and texture (`carpet`) anomalies:
 
-![PatchCore Defect Localization](results/patchcore_localization_summary.png)
+![PatchCore Defect Localization](assets/patchcore_localization_summary.png)
 
 ---
 
@@ -235,6 +265,9 @@ Pixel-level defect localization and overlay masks generated by PatchCore on obje
 Anomaly Detection/
 |-- app/
 |   `-- demo.py                     # Interactive Gradio web inspection demo
+|-- assets/                         # Documentation materials & README figures
+|   |-- eda_gallery.png             # Dataset exploration gallery
+|   `-- patchcore_localization_summary.png # Qualitative localization summary
 |-- configs/
 |   `-- config.yaml                 # Central experiment configurations
 |-- data/                           # MVTec AD dataset directory (15 categories)
@@ -247,8 +280,6 @@ Anomaly Detection/
 |       |-- bottle_resnet18_c0.01.pt
 |       `-- carpet_resnet18_c0.01.pt
 |-- results/                        # Benchmark metrics, figures, and localization plots
-|   |-- eda_gallery.png             # Dataset exploration gallery
-|   |-- patchcore_localization_summary.png # Compact qualitative summary figure
 |   |-- bottle_baseline_benchmark.csv
 |   |-- feature_knn/
 |   `-- patchcore/
