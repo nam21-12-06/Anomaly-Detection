@@ -64,3 +64,12 @@ outputs/
 # OS Specific
 .DS_Store
 Thumbs.db
+
+# Research Papers, Proposals, and Guidelines
+*.pdf
+proposal.md
+anomaly_vision_6week_plan.md
+*proposal*.md
+*guideline*.md
+*plan*.md
+
