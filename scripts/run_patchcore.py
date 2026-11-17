@@ -59,8 +59,8 @@ def parse_args():
         "--backbone",
         type=str,
         default="resnet18",
-        choices=["resnet18", "resnet50", "wide_resnet50_2"],
-        help="Torchvision CNN backbone architecture.",
+        choices=["resnet18", "resnet50", "wide_resnet50_2", "vit_base_patch16_224"],
+        help="Feature extractor backbone architecture (CNN or Vision Transformer).",
     )
     parser.add_argument(
         "--coreset_ratio",
@@ -240,7 +240,7 @@ def run_patchcore(
     model = PatchCore(
         backbone=backbone,
         pretrained=True,
-        layers=("layer2", "layer3"),
+        layers=None,
         patch_pooling=True,
         pooling_kernel=3,
         coreset_sampling_ratio=coreset_ratio,

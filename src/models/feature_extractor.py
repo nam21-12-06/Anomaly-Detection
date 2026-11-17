@@ -17,6 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.transforms.functional as TF
+import timm
 
 
 class ResNetExtractor(nn.Module):
@@ -105,10 +106,13 @@ class ResNetExtractor(nn.Module):
 
     def remove_hooks(self) -> None:
         """Removes all registered hooks to prevent memory leaks."""
-        for handle in self._hook_handles:
+        for handle in getattr(self, "_hook_handles", []):
             handle.remove()
-        self._hook_handles.clear()
-        self._hook_features.clear()
+        if hasattr(self, "_hook_handles"):
+            self._hook_handles.clear()
+        if hasattr(self, "_hook_features"):
+            self._hook_features.clear()
+
 
     @property
     def embedding_dim(self) -> int:
@@ -424,3 +428,154 @@ def interpolate_and_smooth_anomaly_maps(
         smoothed = upsampled
 
     return smoothed
+
+
+
+# Vision Transformers
+class ViTExtractor(nn.Module):
+    """
+    Extracts deep spatial patch representations from pretrained Vision Transformer (ViT) backbones.
+    Uses non-invasive PyTorch forward hooks on intermediate transformer encoder blocks
+    (e.g., block 6, 9, 11), discards the [CLS] classification token, and reshapes
+    the remaining patch sequence (196 tokens for a 224x224 input with patch_size 16)
+    into a 2D spatial feature map of shape (B, channels, 14, 14).
+    Args:
+        model_name: Name of the ViT model in timm (default: 'vit_base_patch16_224').
+        pretrained: If True, loads official ImageNet pretrained weights.
+        blocks: Tuple of block indices to attach hooks to (e.g., (11,) or (6, 9, 11)).
+        weights_dir: Directory to cache model weights locally.
+        device: Torch device to host the model on.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "vit_base_patch16_224",
+        pretrained: bool = True,
+        blocks: Tuple[int, ...] = (11,),
+        weights_dir: Optional[Union[str, Path]] = None,
+        device: Optional[Union[str, torch.device]] = None,
+    ):
+        super().__init__()
+        self.model_name = model_name
+        self.blocks = blocks
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        if weights_dir is None:
+            project_root = Path(__file__).resolve().parent.parent.parent
+            weights_dir = project_root / "weights"
+        self.weights_dir = Path(weights_dir)
+        self.weights_dir.mkdir(parents=True, exist_ok=True)
+        torch.hub.set_dir(str(self.weights_dir.resolve()))
+
+        # Load ViT backbone via timm
+        self.model = timm.create_model(self.model_name, pretrained=pretrained)
+        self.model.to(self.device)
+        self.model.eval()
+
+        # Freeze all parameters
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        self._hook_handles: List[torch.utils.hooks.RemovableHandle] = []
+        self._hook_features: Dict[int, torch.Tensor] = {}
+        self._register_hooks()
+    
+    def _register_hooks(self) -> None:
+        """Attaches forward hooks to designated intermediate transformer blocks."""
+
+        self.remove_hooks()
+        for block_idx in self.blocks:
+            if block_idx < 0 or block_idx >= len(self.model.blocks):
+                raise ValueError(
+                    f"Block index {block_idx} out of range for model with {len(self.model.blocks)} blocks"
+                )
+            target_block = self.model.blocks[block_idx]
+            handle = target_block.register_forward_hook(self._make_hook(block_idx))
+            self._hook_handles.append(handle)
+
+    def _make_hook(self, block_idx: int):
+        """Creates a closure hook function to cache block output tokens."""
+        def hook(module, input_tensor, output_tensor):
+            # Output of a transformer block has shape: (B, 197, 768)
+            self._hook_features[block_idx] = output_tensor
+        return hook
+
+    def remove_hooks(self) -> None:
+        """Removes registered hooks to prevent memory leaks."""
+        for handle in getattr(self, "_hook_handles", []):
+            handle.remove()
+        if hasattr(self, "_hook_handles"):
+            self._hook_handles.clear()
+        if hasattr(self, "_hook_features"):
+            self._hook_features.clear()
+
+
+    @property
+    def embedding_dim(self) -> int:
+        """Returns the total channel dimension after concatenating hooked blocks."""
+        single_block_dim = self.model.embed_dim
+        return single_block_dim * len(self.blocks)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass: passes image through ViT backbone, extracts token representations,
+        discards the [CLS] token, reshapes patch tokens to a 2D spatial grid (14x14),
+        and returns a standard feature tensor (B, embedding_dim, 14, 14).
+
+        Args:
+            x: Input images tensor of shape (B, 3, 224, 224).
+
+        Returns:
+            Spatial feature map tensor of shape (B, embedding_dim, 14, 14).
+        """
+        x = x.to(self.device)
+        self._hook_features.clear()
+
+        # Forward pass (features are captured via hooks)
+        with torch.no_grad():
+            _ = self.model(x)
+
+        spatial_feature_list = []
+        for block_idx in self.blocks:
+            token_out = self._hook_features[block_idx]  # Shape: (B, 197, 768)
+
+            # 1. Discard [CLS] token at index 0, retain 196 patch tokens
+            patch_tokens = token_out[:, 1:, :]  # Shape: (B, 196, 768)
+            batch_size, num_patches, embed_dim = patch_tokens.shape
+
+            # 2. Compute 2D spatial grid dimensions (sqrt(196) = 14)
+            grid_h = grid_w = int(num_patches ** 0.5)
+
+            # 3. Reshape into spatial grid: (B, 14, 14, 768)
+            spatial_grid = patch_tokens.reshape(batch_size, grid_h, grid_w, embed_dim)
+
+            # 4. Permute to PyTorch standard image format: (B, 768, 14, 14)
+            spatial_map = spatial_grid.permute(0, 3, 1, 2).contiguous()
+            spatial_feature_list.append(spatial_map)
+
+        # Concatenate along channel dimension if monitoring multiple blocks
+        if len(spatial_feature_list) == 1:
+            return spatial_feature_list[0]
+        return torch.cat(spatial_feature_list, dim=1)
+
+    def get_patch_embeddings(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
+        """
+        Extracts patch embeddings from input images, flattens spatial grid into vectors.
+
+        Args:
+            x: Input images tensor of shape (B, 3, H, W).
+
+        Returns:
+            Tuple of:
+                - patch_embeddings: Shape (B, N_patches, embedding_dim) where N_patches = H_out * W_out.
+                - spatial_shape: (H_out, W_out).
+        """
+        feat_map = self.forward(x)  # Shape: (B, embedding_dim, H_out, W_out)
+        b, c, h, w = feat_map.shape
+        patches = feat_map.permute(0, 2, 3, 1).reshape(b, h * w, c)
+        return patches, (h, w)
+
+    def __del__(self):
+        self.remove_hooks()
+
+

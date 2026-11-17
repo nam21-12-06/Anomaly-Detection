@@ -31,7 +31,12 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    SummaryWriter = None
+    TENSORBOARD_AVAILABLE = False
 from tqdm import tqdm
 
 from src.data import get_mvtec_dataloader
@@ -234,9 +239,12 @@ def main():
     # 4b. TensorBoard writer
     writer = None
     if args.tensorboard:
-        log_path = Path(args.log_dir) / f"{args.category}_{args.model}"
-        writer = SummaryWriter(log_dir=str(log_path))
-        print(f"TensorBoard log directory: {log_path.resolve()}")
+        if TENSORBOARD_AVAILABLE:
+            log_path = Path(args.log_dir) / f"{args.category}_{args.model}"
+            writer = SummaryWriter(log_dir=str(log_path))
+            print(f"TensorBoard log directory: {log_path.resolve()}")
+        else:
+            print("Warning: TensorBoard requested but tensorboard package is unavailable.")
 
     start_epoch = 1
     best_loss = float("inf")

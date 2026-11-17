@@ -22,6 +22,7 @@ from tqdm import tqdm
 from src.models.feature_extractor import (
     FeatureMemoryBank,
     ResNetExtractor,
+    ViTExtractor,
     interpolate_and_smooth_anomaly_maps,
 )
 
@@ -31,10 +32,10 @@ class PatchCore(nn.Module):
     PatchCore industrial visual anomaly detection model.
 
     Args:
-        backbone: CNN backbone architecture ('wide_resnet50_2', 'resnet50', or 'resnet18').
+        backbone: Feature extractor backbone ('wide_resnet50_2', 'resnet50', 'resnet18', or 'vit_base_patch16_224').
         pretrained: If True, uses official ImageNet-1K pretrained weights.
-        layers: Intermediate residual layers to extract features from.
-        patch_pooling: If True, applies 3x3 average pooling to incorporate local patch neighborhood context.
+        layers: Intermediate residual layers (for CNN) or transformer blocks (for ViT) to extract features from.
+        patch_pooling: If True, applies 3x3 average pooling to incorporate local patch neighborhood context (CNN only).
         pooling_kernel: Size of the neighborhood pooling kernel window (default: 3).
         coreset_sampling_ratio: Fraction of memory bank patches to retain (default: 0.01 for 1%).
         n_neighbors: Number of nearest neighbors for patch distance / density re-weighting (default: 9).
@@ -49,7 +50,7 @@ class PatchCore(nn.Module):
         self,
         backbone: str = "wide_resnet50_2",
         pretrained: bool = True,
-        layers: Tuple[str, ...] = ("layer2", "layer3"),
+        layers: Optional[Tuple[Union[str, int], ...]] = None,
         patch_pooling: bool = True,
         pooling_kernel: int = 3,
         coreset_sampling_ratio: float = 0.01,
@@ -62,7 +63,6 @@ class PatchCore(nn.Module):
     ):
         super().__init__()
         self.backbone_name = backbone
-        self.layers = layers
         self.patch_pooling = patch_pooling
         self.pooling_kernel = pooling_kernel
         self.coreset_sampling_ratio = coreset_sampling_ratio
@@ -71,17 +71,36 @@ class PatchCore(nn.Module):
         self.image_size = image_size
         self.sigma = sigma
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.is_vit = backbone.lower().startswith("vit_")
 
-        # Feature extractor with neighborhood patch pooling
-        self.extractor = ResNetExtractor(
-            backbone=backbone,
-            pretrained=pretrained,
-            layers=layers,
-            patch_pooling=patch_pooling,
-            pooling_kernel=pooling_kernel,
-            weights_dir=weights_dir,
-            device=self.device,
-        )
+        # Feature extractor initialization (ResNet vs ViT)
+        if self.is_vit:
+            if layers is None or layers == ("layer2", "layer3"):
+                self.blocks = (6, 9, 11)
+            else:
+                self.blocks = tuple(int(b) for b in layers)
+            self.layers = self.blocks
+            self.extractor = ViTExtractor(
+                model_name=backbone,
+                pretrained=pretrained,
+                blocks=self.blocks,
+                weights_dir=weights_dir,
+                device=self.device,
+            )
+        else:
+            if layers is None:
+                self.layers = ("layer2", "layer3")
+            else:
+                self.layers = tuple(str(l) for l in layers)
+            self.extractor = ResNetExtractor(
+                backbone=backbone,
+                pretrained=pretrained,
+                layers=self.layers,
+                patch_pooling=patch_pooling,
+                pooling_kernel=pooling_kernel,
+                weights_dir=weights_dir,
+                device=self.device,
+            )
 
         # Memory bank to store the coreset representation of normality
         self.memory_bank = FeatureMemoryBank(device=self.device)
@@ -210,8 +229,9 @@ class PatchCore(nn.Module):
         # Softmax re-weighting factor: Eq. (7) of PatchCore paper
         # w = 1 - (exp(s*) / sum_{m in N_b} exp(||p* - m||))
         s_star = topk_dists[:, 0:1]  # (B, 1) - distance to closest coreset point
-        # Numerical stability: subtract s_star inside exponents
-        exp_diffs = torch.exp(s_star - topk_dists)  # (B, k_val)
+        # Temperature scaling based on embedding dimension to prevent softmax saturation in high dimensions
+        temp = max(1.0, float(self.embedding_dim) / 384.0)
+        exp_diffs = torch.exp((s_star - topk_dists) / temp)  # (B, k_val)
         sum_exp = exp_diffs.sum(dim=1)  # (B,)
 
         # Weight factor w = 1.0 - (1.0 / sum_exp)
@@ -282,6 +302,21 @@ class PatchCore(nn.Module):
         )
 
         return anomaly_maps, image_scores
+
+    def get_heatmap(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Convenience method to compute and return the anomaly heatmap for input image(s).
+
+        Args:
+            image: Tensor of shape (B, 3, H, W) or (3, H, W).
+
+        Returns:
+            Anomaly heatmap tensor of shape (B, 1, H, W).
+        """
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
+        anomaly_maps, _ = self.predict(image, reweight=False)
+        return anomaly_maps
 
     def save(self, path: Union[str, Path]) -> None:
         """Serializes the PatchCore model artifact (coreset memory bank + metadata)."""

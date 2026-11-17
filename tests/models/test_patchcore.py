@@ -118,3 +118,41 @@ def test_patchcore_save_and_load():
         new_model.extractor.remove_hooks()
     model.extractor.remove_hooks()
 
+
+def test_patchcore_vit_initialization_and_fit_predict():
+    # Synthetic normal images: 2 images of size (3, 224, 224)
+    normal_images = torch.randn(2, 3, 224, 224)
+    loader = DataLoader(TensorDataset(normal_images), batch_size=2)
+
+    model = PatchCore(
+        backbone="vit_base_patch16_224",
+        pretrained=False,
+        layers=(11,),  # single block for fast testing (768-D)
+        coreset_sampling_ratio=0.1,  # 10% coreset
+        n_neighbors=2,
+        dimension_reduction=16,
+    )
+    assert model.is_vit is True
+    assert model.embedding_dim == 768
+
+    metadata = model.fit(loader, verbose=False, random_state=42)
+    # 2 images * 196 patches = 392 patches
+    assert metadata["original_patches_count"] == 392
+    # 10% of 392 = 40 coreset patches (ceil(392 * 0.1))
+    assert metadata["coreset_patches_count"] == 40
+    assert len(model.memory_bank) == 40
+
+    # Predict
+    test_images = torch.randn(2, 3, 224, 224)
+    maps, scores = model.predict(test_images, reweight=True)
+    assert maps.shape == (2, 1, 224, 224)
+    assert scores.shape == (2,)
+
+    # Test get_heatmap convenience method
+    single_image = torch.randn(3, 224, 224)
+    heatmap = model.get_heatmap(single_image)
+    assert heatmap.shape == (1, 1, 224, 224)
+
+    model.extractor.remove_hooks()
+
+
