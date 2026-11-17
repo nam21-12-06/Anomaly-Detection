@@ -3,6 +3,7 @@ from src.models.coreset import GreedyCoresetSampler
 from src.models.feature_extractor import (
     FeatureMemoryBank,
     ResNetExtractor,
+    ViTExtractor,
     interpolate_and_smooth_anomaly_maps,
 )
 from src.models.losses import SSIM, AutoencoderLoss, SSIMLoss, VAELoss
@@ -14,6 +15,7 @@ __all__ = [
     "ConvAutoencoder",
     "ConvVAE",
     "ResNetExtractor",
+    "ViTExtractor",
     "FeatureMemoryBank",
     "GreedyCoresetSampler",
     "PatchCore",
