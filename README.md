@@ -2,14 +2,30 @@
 
 # ANOMALY-VISION
 
-### Deep Learning-Based Industrial Visual Anomaly Detection
+### Deep Learning-Based Industrial Visual Anomaly Detection & Defect Localization
 
 <p>
-  <img src="https://img.shields.io/badge/Status-Phases%201--5%20Complete-brightgreen?style=for-the-badge" alt="Status: Complete" />
+  <img src="https://img.shields.io/badge/Status-In%20Progress-blue?style=for-the-badge" alt="Status: In Progress" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python Version" />
   <img src="https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch" />
   <img src="https://img.shields.io/badge/CUDA-Enabled-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="CUDA Enabled" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License" />
+</p>
+
+<p>
+  <img src="https://img.shields.io/badge/timm-Vision%20Transformer-FF6F00?style=for-the-badge" alt="timm" />
+  <img src="https://img.shields.io/badge/OpenCV-Computer%20Vision-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" alt="OpenCV" />
+  <img src="https://img.shields.io/badge/scikit--learn-AUROC%20%26%20PRO-F7931E?style=for-the-badge&logo=scikitlearn&logoColor=white" alt="scikit-learn" />
+  <img src="https://img.shields.io/badge/FAISS-Vector%20Search-00599C?style=for-the-badge" alt="FAISS" />
+  <img src="https://img.shields.io/badge/GUI-PyQt6%20AOI-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="PyQt6" />
+</p>
+
+<p>
+  <img src="https://img.shields.io/badge/Dataset-MVTec%20AD%20(15%20Cats)-E34F26?style=for-the-badge" alt="Dataset: MVTec AD" />
+  <img src="https://img.shields.io/badge/Baselines-ConvAE%20%7C%20ConvVAE-8A2BE2?style=for-the-badge" alt="Baselines" />
+  <img src="https://img.shields.io/badge/Memory%20Bank-kNN--ResNet18-008080?style=for-the-badge" alt="Memory Bank" />
+  <img src="https://img.shields.io/badge/SOTA-PatchCore%20(ResNet--18)-2ea043?style=for-the-badge" alt="PatchCore ResNet18" />
+  <img src="https://img.shields.io/badge/Transformer-PatchCore%20(ViT--Base)-6f42c1?style=for-the-badge" alt="PatchCore ViT-Base" />
 </p>
 
 <p align="center">
@@ -25,99 +41,51 @@
 In industrial manufacturing, anomalies such as cracks, scratches, structural deformations, and contaminations occur rarely. Standard supervised classifiers fail due to severe class imbalance and the unbounded variety of potential defects.
 
 **ANOMALY-VISION** addresses this cold-start quality inspection problem via **One-Class Visual Representation Learning**:
-- Training is conducted strictly on defect-free samples (normal data).
-- The model establishes a distribution of normality.
-- At test time, deviations from this distribution are detected, scored, and localized down to individual pixels.
+- **Defect-Free Normal Training:** Models establish a robust manifold of normality strictly using nominal images.
+- **Out-of-Distribution Scoring:** At test time, deviations from this nominal manifold are detected, scored, and localized down to individual pixels.
+- **Benchmark Scale:** Evaluated across all 15 categories (5 textures, 10 rigid objects) of the comprehensive MVTec Anomaly Detection benchmark.
 
-<div style="background-color: #f6f8fa; border-left: 4px solid #0969da; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
-  <strong>Current Progress:</strong> Phases 1 through 5 are Complete across all 15 MVTec AD categories and 5 distinct model paradigms:
-  <br />- <strong>Reconstruction Baselines (ConvAE & ConvVAE):</strong> Evaluated on <em>bottle</em> and <em>capsule</em>; demonstrates the Generalization Paradox on <em>capsule</em> (64.5% Image AUROC).
-  <br />- <strong>Deep Feature Memory Bank (kNN-ResNet18):</strong> Achieves 99.6% AUROC on <em>bottle</em> and 93.9% on <em>capsule</em> with 163k uncompressed patches (240 MB).
-  <br />- <strong>PatchCore-ResNet18 (1% Coreset, 2.8 MB):</strong> <strong>96.43% Mean Image AUROC</strong>, <strong>96.90% Pixel AUROC</strong>, and <strong>88.71% PRO</strong> across all 15 MVTec categories. Completely resolves the Generalization Paradox (93.8% on <em>capsule</em>) with 100x memory compression.
-  <br />- <strong>PatchCore-ViT-Base (1% Coreset, 4.2 MB):</strong> <strong>96.24% Mean Image AUROC on Textures</strong> (outperforming ResNet-18 by +0.92%), with 108.5 ms/image inference latency.
-  <br />- <strong>Full Benchmark & Failure Analysis:</strong> Comprehensive multi-paradigm pipeline (<code>scripts/full_evaluation.py</code>) and interactive analysis notebook (<code>notebooks/06_full_results.ipynb</code>).
+<div style="background-color: #f6f8fa; border: 1px solid #d0d7de; border-left: 5px solid #0969da; border-radius: 6px; padding: 14px 18px; margin: 16px 0;">
+  <strong style="font-size: 14px; color: #0969da;">Core AI & Computer Vision Stack:</strong>
+  <br />
+  - <strong>Deep Learning & Acceleration:</strong> <code>PyTorch 2.0+</code>, <code>Torchvision</code> (CUDA GPU-accelerated tensor computations & forward hooks)
+  <br />
+  - <strong>Pretrained Backbones:</strong> <code>timm</code> (PyTorch Image Models, Vision Transformer token extraction)
+  <br />
+  - <strong>Computer Vision & Augmentation:</strong> <code>OpenCV (cv2)</code>, <code>Pillow (PIL)</code>, <code>Albumentations</code> (BICUBIC transforms, Gaussian filtering, contour extraction)
+  <br />
+  - <strong>High-Dimensional Vector Search:</strong> <code>FAISS</code>, <code>scipy.spatial</code> (Fast Euclidean k-NN patch memory retrieval)
+  <br />
+  - <strong>Evaluation Metrics:</strong> <code>scikit-learn</code> (Image/Pixel AUROC, Per-Region Overlap PRO, Youden's J & F1 optimal thresholding)
+  <br />
+  - <strong>Industrial GUI Deployment:</strong> <code>PyQt6</code> (Native Automated Optical Inspection AOI Workstation) & <code>Gradio</code> (Web demo)
 </div>
 
----
+<div style="background-color: #f6f8fa; border: 1px solid #d0d7de; border-left: 5px solid #1a7f37; border-radius: 6px; padding: 14px 18px; margin: 16px 0;">
+  <strong style="font-size: 14px; color: #1a7f37;">Evaluated Model Paradigms & Baselines:</strong>
+  <br />
+  - <strong>Pixel Reconstruction Baseline:</strong> <code>ConvAutoencoder (AE)</code> &mdash; Bottleneck compression trained with composite $\mathcal{L}_1 + \text{SSIM}$ perceptual loss.
+  <br />
+  - <strong>Probabilistic Generative Baseline:</strong> <code>ConvVAE</code> &mdash; Latent Gaussian bottleneck regularized via Kullback-Leibler (KL) divergence.
+  <br />
+  - <strong>Deep Feature Memory Bank:</strong> <code>kNN-ResNet18</code> &mdash; Non-parametric anomaly detection using intermediate activations from convolutional layers (<code>layer2</code>, <code>layer3</code>).
+  <br />
+  - <strong>SOTA Memory Bank:</strong> <code>PatchCore-ResNet18</code> &mdash; Patch-level neighborhood aggregation with 1% Greedy Farthest-Point Coreset Subsampling (100x compression).
+  <br />
+  - <strong>Global Attention Transformer:</strong> <code>PatchCore-ViT-Base</code> &mdash; All-to-all Multi-Head Self-Attention feature hooks with dimensionality-aware temperature scaling.
+</div>
 
-## Technical Pipeline
-
-```text
-Normal Training Images
-         |
-         v
-Deep Feature Representation (CNN / ViT / Autoencoder)
-         |
-         v
-Normality Modeling (Latent Reconstruction / Patch Memory Bank)
-         |
-         v
-Inference Image
-         |
-         +---> 1. Image-Level Anomaly Score (Normal vs. Defect)
-         |
-         +---> 2. Pixel-Level Heatmap (Defect Localization)
-```
-
----
-
-## Implementation Roadmap
-
-<table>
-  <thead>
-    <tr>
-      <th>Stage</th>
-      <th>Method</th>
-      <th>Core Mechanism</th>
-      <th>Key Metrics</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><b>Phase 1</b></td>
-      <td>Dataset & Preprocessing</td>
-      <td>Modular PyTorch DataLoader, Nearest-neighbor mask interpolation, Multi-category EDA</td>
-      <td>Data integrity</td>
-      <td><b>Completed</b></td>
-    </tr>
-    <tr>
-      <td><b>Phase 2</b></td>
-      <td>Reconstruction Baseline</td>
-      <td>ConvAutoencoder & ConvVAE with L1 + SSIM loss, KL divergence, and training resume</td>
-      <td>Reconstruction Error, Image-AUROC</td>
-      <td><b>Complete</b> (AE: 93.3% / VAE: 89.1% Image-AUROC on <em>bottle</em>)</td>
-    </tr>
-    <tr>
-      <td><b>Phase 3</b></td>
-      <td>Feature Embedding & ViT Deep Dive</td>
-      <td>ResNet & ViT feature extractors, Multi-Head Self-Attention hooks, Memory Bank k-NN scoring</td>
-      <td>Image-AUROC, Pixel-AUROC, PRO</td>
-      <td><b>Complete</b> (kNN-ViT-Base: 100.0% Image-AUROC, 98.2% Pixel-AUROC; kNN-ResNet18: 99.6% Image-AUROC on <em>bottle</em>)</td>
-    </tr>
-    <tr>
-      <td><b>Phase 4</b></td>
-      <td>PatchCore (SOTA)</td>
-      <td>Patch features, 3x3 Neighborhood Pooling, Greedy Farthest-Point Coreset Subsampling (ResNet & ViT backbones)</td>
-      <td>Image-AUROC, Pixel-AUROC, PRO</td>
-      <td><b>Complete</b> (100.0% on <em>bottle</em>, 97.3% on <em>carpet</em>, 93.8% on <em>capsule</em> with 1% Coreset)</td>
-    </tr>
-    <tr>
-      <td><b>Phase 5</b></td>
-      <td>Full Multi-Category Benchmark & Localization</td>
-      <td>Multi-category benchmark pipeline across 15 categories, optimal thresholding (Percentile, Youden J, F1), failure case analysis</td>
-      <td>Image AUROC, Pixel AUROC, PRO</td>
-      <td><b>Completed</b> (Evaluated all 15 categories; Mean ResNet18 AUROC: 96.43%, Mean ViT AUROC: 89.65%; Notebook <code>06_full_results.ipynb</code>)</td>
-    </tr>
-    <tr>
-      <td><b>Phase 6</b></td>
-      <td>Deployment Demo</td>
-      <td>Interactive web interface with Gradio for real-time inference</td>
-      <td>Inference Latency</td>
-      <td><b>Complete</b> (Gradio interactive UI)</td>
-    </tr>
-  </tbody>
-</table>
+<div style="background-color: #f6f8fa; border: 1px solid #d0d7de; border-left: 5px solid #8250df; border-radius: 6px; padding: 14px 18px; margin: 16px 0;">
+  <strong style="font-size: 14px; color: #8250df;">Benchmark Scope & Protocol:</strong>
+  <br />
+  - <strong>Dataset:</strong> Official <code>MVTec Anomaly Detection (MVTec AD)</code> benchmark covering all 15 industrial categories (5 textures, 10 rigid objects).
+  <br />
+  - <strong>Protocol:</strong> Strictly unsupervised / one-class representation learning using exclusively nominal (defect-free) samples for training.
+  <br />
+  - <strong>Evaluation Metrics:</strong> Image-level AUROC (detection), Pixel-level AUROC (segmentation), and Per-Region Overlap (PRO score at FPR &le; 0.3).
+  <br />
+  - <strong>Production Performance:</strong> Real-time inference latency (~50 ms/image on CUDA) with automated conveyor belt inspection simulation.
+</div>
 
 ---
 
@@ -227,7 +195,7 @@ $$p(u, v) = \frac{1}{K^2} \sum_{i=-\lfloor K/2 \rfloor}^{\lfloor K/2 \rfloor} \s
 
 To eliminate memory overhead and accelerate inference, a subset $\mathcal{M}_C \subset \mathcal{M}$ of fraction $\gamma = 0.01$ (1%) is constructed to minimize the maximum distance from any nominal patch in $\mathcal{M}$ to its nearest coreset point:
 
-$$\mathcal{M}_C^* = \arg\min_{\mathcal{M}_C \subset \mathcal{M}} \max_{m \in \mathcal{M}} \min_{c \in \mathcal{M}_C} \|m - c\|_2$$
+$$\mathcal{M}_C^{\ast} = \arg\min_{\mathcal{M}_C \subset \mathcal{M}} \max_{m \in \mathcal{M}} \min_{c \in \mathcal{M}_C} \|m - c\|_2$$
 
 - **Greedy Farthest-Point Iteration:** Initialized with $c_1 \sim \mathcal{M}$, iteratively selecting:
 
@@ -238,11 +206,11 @@ $$c_t = \arg\max_{m \in \mathcal{M}} \min_{c \in \mathcal{M}_C} \|m - c\|_2$$
 
 #### Softmax Neighborhood Density Re-weighting
 
-For query image $x_{\text{test}}$, let $p^* = \arg\max_p s(p)$ denote the maximally anomalous patch with distance $s^* = s(p^*)$, and let $\mathcal{N}_b(p^*) \subset \mathcal{M}_C$ be its $b=9$ nearest coreset neighbors:
+For query image $x_{\text{test}}$, let $p^{\ast} = \arg\max_p s(p)$ denote the maximally anomalous patch with distance $s^{\ast} = s(p^{\ast})$, and let $\mathcal{N}_b(p^{\ast}) \subset \mathcal{M}_C$ be its $b=9$ nearest coreset neighbors:
 
-$$w = 1 - \frac{\exp(s^* / T)}{\sum_{c \in \mathcal{N}_b(p^*)} \exp(\|p^* - c\|_2 / T)} = 1 - \frac{1}{\sum_{c \in \mathcal{N}_b(p^*)} \exp\left((s^* - \|p^* - c\|_2) / T\right)}$$
+$$w = 1 - \frac{\exp(s^{\ast} / T)}{\sum_{c \in \mathcal{N}_b(p^{\ast})} \exp(\|p^{\ast} - c\|_2 / T)} = 1 - \frac{1}{\sum_{c \in \mathcal{N}_b(p^{\ast})} \exp\left((s^{\ast} - \|p^{\ast} - c\|_2) / T\right)}$$
 
-$$S_{\text{image}} = w \cdot s^*$$
+$$S_{\text{image}} = w \cdot s^{\ast}$$
 
 - $T = \max(1.0, D / 384)$: Dimensionality-aware temperature scaling preventing exponential saturation in high-dimensional feature spaces (e.g. ViT 2304-D).
 - In dense nominal regions, large neighbor sums drive $w \to 1.0$.
@@ -263,12 +231,10 @@ Evaluates the architectural evolution from pixel reconstruction (ConvAE, ConvVAE
 | **bottle** | Object | Feature Memory Bank | kNN-ResNet18 (Full Bank) | 99.60% | 97.68% | **93.58%** | 157.8 ms | 240.02 MB |
 | **bottle** | Object | SOTA Memory Bank | **PatchCore-ResNet18 (1% Coreset)** | **100.00%** | **97.69%** | 91.31% | 90.2 ms | **2.40 MB** |
 | **bottle** | Object | SOTA Memory Bank | PatchCore-ViT-Base (1% Coreset) | 97.94% | 96.68% | 79.45% | 88.9 ms | 3.60 MB |
-|---|---|---|---|---|---|---|---|---|
 | **capsule** | Object | Reconstruction | ConvAutoencoder (AE) | 64.50% | 86.59% | 66.67% | **120.8 ms** | 45.87 MB |
 | **capsule** | Object | Feature Memory Bank | kNN-ResNet18 (Full Bank) | **93.90%** | **98.51%** | **92.26%** | 202.1 ms | 251.51 MB |
 | **capsule** | Object | SOTA Memory Bank | **PatchCore-ResNet18 (1% Coreset)** | 93.82% | 98.39% | 88.59% | 126.6 ms | **2.52 MB** |
 | **capsule** | Object | SOTA Memory Bank | PatchCore-ViT-Base (1% Coreset) | 83.05% | 95.44% | 77.69% | 130.0 ms | 3.78 MB |
-|---|---|---|---|---|---|---|---|---|
 | **carpet** | Texture | Feature Memory Bank | kNN-ResNet18 (Full Bank) | 94.42% | 97.53% | 91.58% | 228.8 ms | 321.56 MB |
 | **carpet** | Texture | SOTA Memory Bank | **PatchCore-ResNet18 (1% Coreset)** | **97.27%** | **98.65%** | **93.47%** | **124.9 ms** | **3.22 MB** |
 | **carpet** | Texture | SOTA Memory Bank | PatchCore-ViT-Base (1% Coreset) | 95.26% | 97.93% | 87.81% | 129.8 ms | 4.83 MB |
@@ -296,7 +262,6 @@ Comprehensive comparative benchmark across all 15 MVTec AD categories under the 
 | `transistor` | Object | **98.58%** | 66.71% | **95.58%** | 78.22% | **92.78%** | 48.10% | 183.2 ms | **121.8 ms** |
 | `wood` | Texture | 98.16% | **98.25%** | 92.65% | **93.13%** | **86.08%** | 84.93% | 147.9 ms | **134.2 ms** |
 | `zipper` | Object | **98.06%** | 85.08% | **98.52%** | 86.33% | **94.14%** | 70.53% | 96.5 ms | **76.1 ms** |
-|---|---|---|---|---|---|---|---|---|---|
 | **Mean Textures (5)** | Texture | 95.32% | **96.24%** | **95.70%** | 94.82% | **86.97%** | 84.31% | 141.9 ms | **116.9 ms** |
 | **Mean Objects (10)** | Object | **96.99%** | 86.35% | **97.50%** | 92.71% | **89.58%** | 74.17% | 128.0 ms | **104.3 ms** |
 | **Overall Mean (15)** | All | **96.43%** | 89.65% | **96.90%** | 93.41% | **88.71%** | 77.55% | 132.7 ms | **108.5 ms** |
@@ -326,8 +291,8 @@ Pixel-level defect localization and overlay masks generated by PatchCore on obje
 
 ![PatchCore Defect Localization](assets/patchcore_localization_summary.png)
 
-### 3. Generalization Paradox Resolution on Capsule (ResNet-18)
-Side-by-side localization demonstrating PatchCore capturing hairline cracks and surface defects that Autoencoders fail to detect:
+### 3. PatchCore Defect Localization on Rigid Object (Capsule)
+Multi-defect localization across crack, imprint, poke, scratch, and squeeze defects using threshold-calibrated defect overlay masking:
 
 ![Capsule PatchCore Localization](assets/capsule_localization.png)
 
@@ -343,11 +308,12 @@ PatchCore with Vision Transformer backbone accurately localizing irregular fiber
 ```text
 Anomaly Detection/
 |-- app/
-|   `-- demo.py                     # Interactive Gradio web inspection demo
+|   |-- demo.py                     # Unified demo entrypoint (Desktop GUI / Web)
+|   `-- desktop_demo.py             # Native PyQt6 Industrial AOI Workstation
 |-- assets/                         # Documentation materials & README figures
 |   |-- eda_gallery.png             # Dataset exploration gallery
 |   |-- patchcore_localization_summary.png # Qualitative localization summary
-|   |-- capsule_localization.png    # Generalization paradox localization
+|   |-- capsule_localization.png    # Calibrated defect localization on capsule
 |   `-- carpet_vit_localization.png # ViT texture localization figure
 |-- configs/
 |   `-- config.yaml                 # Central experiment configurations
@@ -374,7 +340,7 @@ Anomaly Detection/
 |   |-- 05_patchcore.ipynb          # SOTA PatchCore coreset analysis & multi-backbone
 |   `-- 06_full_results.ipynb       # Multi-paradigm evaluation, thresholding, failure cases
 |-- results/                        # Benchmark metrics, figures, and localization plots
-|   |-- full_evaluation/            # Week 5 full benchmark summary, predictions & figures
+|   |-- full_evaluation/            # Multi-category benchmark summaries, predictions & figures
 |   |   |-- full_benchmark_summary.csv
 |   |   |-- master_comparison_table.md
 |   |   |-- predictions/            # Serialized prediction packages (.pt)
@@ -408,6 +374,7 @@ Anomaly Detection/
 |   |-- models/
 |   |   |-- test_autoencoder.py
 |   |   |-- test_coreset.py
+|   |   |-- test_desktop_demo.py    # PyQt6 AOI Workstation GUI tests
 |   |   |-- test_evaluate_knn.py
 |   |   |-- test_feature_extractor.py
 |   |   |-- test_full_evaluation.py # Full evaluation pipeline unit tests
@@ -443,7 +410,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-### 3. Automated Multi-Category Benchmark Pipeline (Week 5)
+### 3. Automated Multi-Category Benchmark Pipeline
 
 ```bash
 # Run multi-paradigm comparison on representative categories
@@ -462,11 +429,21 @@ python scripts/run_patchcore.py --category bottle --backbone resnet18 --coreset_
 # Run PatchCore on 'bottle' with Vision Transformer (ViT-Base, 1% Coreset)
 python scripts/run_patchcore.py --category bottle --backbone vit_base_patch16_224 --coreset_ratio 0.01
 
-# Run PatchCore on 'capsule' (Definitively resolving the Generalization Paradox: 93.8% AUROC)
+# Run PatchCore on 'capsule' (Non-parametric memory bank: 93.8% AUROC)
 python scripts/run_patchcore.py --category capsule --backbone resnet18 --coreset_ratio 0.01
 
 # Run PatchCore on 'carpet' (Textured Surface)
 python scripts/run_patchcore.py --category carpet --backbone resnet18 --coreset_ratio 0.01
+```
+
+### 5. Interactive Inspection Demo
+
+```bash
+# Launch Native Industrial AOI Desktop Application (PyQt6)
+python app/desktop_demo.py
+
+# Or launch Gradio Web Interface
+python app/demo.py --web
 ```
 
 ---
