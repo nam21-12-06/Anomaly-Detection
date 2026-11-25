@@ -127,7 +127,7 @@ def inspect_image(
             None,
             None,
             None,
-            "<div style='color: orange; font-size: 16px;'>⚠️ Vui lòng tải lên một ảnh để kiểm tra.</div>",
+            "<div style='color: orange; font-size: 16px;'>[WARNING] Vui lòng tải lên một ảnh để kiểm tra.</div>",
             "N/A",
             "N/A",
         )
@@ -146,7 +146,7 @@ def inspect_image(
                 display_img,
                 None,
                 None,
-                f"<div style='color: red;'>❌ Không tìm thấy checkpoint PatchCore cho '{category}'.</div>",
+                f"<div style='color: red;'>[ERROR] Không tìm thấy checkpoint PatchCore cho '{category}'.</div>",
                 "N/A",
                 "N/A",
             )
@@ -165,7 +165,7 @@ def inspect_image(
                 display_img,
                 None,
                 None,
-                f"<div style='color: red;'>❌ Không tìm thấy checkpoint Autoencoder cho '{category}'.</div>",
+                f"<div style='color: red;'>[ERROR] Không tìm thấy checkpoint Autoencoder cho '{category}'.</div>",
                 "N/A",
                 "N/A",
             )
@@ -206,14 +206,14 @@ def inspect_image(
     if is_anomaly:
         status_html = f"""
         <div style="background-color: #ffeef0; border: 2px solid #cf222e; border-radius: 8px; padding: 12px; text-align: center;">
-            <h2 style="color: #cf222e; margin: 0; font-weight: 800; font-size: 22px;">⚠️ DEFECT DETECTED (NG)</h2>
+            <h2 style="color: #cf222e; margin: 0; font-weight: 800; font-size: 22px;">[FAIL] DEFECT DETECTED (NG)</h2>
             <p style="color: #57606a; margin: 4px 0 0 0; font-size: 13px;">Sản phẩm không đạt chuẩn chất lượng (Vượt ngưỡng {threshold:.2f})</p>
         </div>
         """
     else:
         status_html = f"""
         <div style="background-color: #dafbe1; border: 2px solid #1a7f37; border-radius: 8px; padding: 12px; text-align: center;">
-            <h2 style="color: #1a7f37; margin: 0; font-weight: 800; font-size: 22px;">✅ PASSED (OK)</h2>
+            <h2 style="color: #1a7f37; margin: 0; font-weight: 800; font-size: 22px;">[PASS] PASSED (OK)</h2>
             <p style="color: #57606a; margin: 4px 0 0 0; font-size: 13px;">Sản phẩm đạt chuẩn bình thường (Dưới ngưỡng {threshold:.2f})</p>
         </div>
         """
@@ -253,7 +253,7 @@ def create_ui():
         with gr.Row(elem_classes=["header-box"]):
             gr.Markdown(
                 """
-                # 🔍 ANOMALY-VISION
+                # ANOMALY-VISION
                 ### Hệ Thống Kiểm Tra & Định Vị Khuyết Tật Sản Phẩm Công Nghiệp Tự Động
                 *Học biểu diễn từ ảnh bình thường (One-Class Visual Representation Learning) trên chuẩn MVTec AD.*
                 """
@@ -262,7 +262,7 @@ def create_ui():
         with gr.Row():
             # Left Panel: Input & Settings
             with gr.Column(scale=4):
-                gr.Markdown("#### 📥 1. Chọn Dữ Liệu & Mô Hình")
+                gr.Markdown("#### [1] Chọn Dữ Liệu & Mô Hình")
                 input_image = gr.Image(label="Ảnh sản phẩm cần kiểm tra", type="numpy")
 
                 with gr.Row():
@@ -286,11 +286,11 @@ def create_ui():
                     info="Điểm bất thường vượt quá ngưỡng này sẽ bị kết luận là DEFECT",
                 )
 
-                inspect_button = gr.Button("⚡ Bắt Đầu Kiểm Tra (Inspect)", variant="primary", size="lg")
+                inspect_button = gr.Button("Bắt Đầu Kiểm Tra (Inspect)", variant="primary", size="lg")
 
             # Right Panel: Results & Localization
             with gr.Column(scale=6):
-                gr.Markdown("#### 📊 2. Kết Quả Kiểm Định Chất Lượng")
+                gr.Markdown("#### [2] Kết Quả Kiểm Định Chất Lượng")
                 status_output = gr.HTML(
                     """
                     <div style="background-color: #f6f8fa; border: 1px dashed #d0d7de; border-radius: 8px; padding: 16px; text-align: center;">
@@ -303,7 +303,7 @@ def create_ui():
                     score_metric = gr.Textbox(label="Điểm Bất Thường (Anomaly Score)", interactive=False)
                     latency_metric = gr.Textbox(label="Thời Gian Xử Lý (Latency)", interactive=False)
 
-                gr.Markdown("#### 🗺️ 3. Định Vị Vùng Khuyết Tật (Pixel-Level Heatmap)")
+                gr.Markdown("#### [3] Định Vị Vùng Khuyết Tật (Pixel-Level Heatmap)")
                 with gr.Row():
                     out_orig = gr.Image(label="Ảnh Gốc (224x224)", interactive=False)
                     out_heatmap = gr.Image(label="Heatmap Điểm Lỗi", interactive=False)
@@ -311,7 +311,7 @@ def create_ui():
 
         # Pre-loaded Example Gallery
         gr.Markdown("---")
-        gr.Markdown("#### 📁 Ảnh Mẫu Thử Nghiệm Nhanh (Click để nạp ảnh)")
+        gr.Markdown("#### [4] Ảnh Mẫu Thử Nghiệm Nhanh (Click để nạp ảnh)")
         example_samples = [
             ["data/bottle/test/good/000.png", "bottle", "PatchCore (SOTA)", 1.80],
             ["data/bottle/test/broken_large/000.png", "bottle", "PatchCore (SOTA)", 1.80],
@@ -354,6 +354,21 @@ def create_ui():
 
 
 if __name__ == "__main__":
-    demo_app = create_ui()
-    print("Launching ANOMALY-VISION Gradio Demo on http://127.0.0.1:7860 ...")
-    demo_app.launch(server_name="127.0.0.1", server_port=7860, share=False)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="ANOMALY-VISION Inspection Demo")
+    parser.add_argument(
+        "--web",
+        "--gradio",
+        action="store_true",
+        help="Launch Gradio Web Interface instead of Native Desktop GUI",
+    )
+    args = parser.parse_args()
+
+    if args.web:
+        demo_app = create_ui()
+        print("Launching ANOMALY-VISION Gradio Demo on http://127.0.0.1:7860 ...")
+        demo_app.launch(server_name="127.0.0.1", server_port=7860, share=False)
+    else:
+        from app.desktop_demo import main as run_desktop
+        run_desktop()

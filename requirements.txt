@@ -29,5 +29,6 @@ tensorboard>=2.10.0
 # Configuration Management
 pyyaml>=6.0
 
-# Interactive Demo & Web UI
+# Interactive Demo & GUI
 gradio>=4.0.0
+PyQt6>=6.5.0
