@@ -303,6 +303,27 @@ PatchCore with Vision Transformer backbone accurately localizing irregular fiber
 
 ---
 
+## Interactive AOI Workstation Demo
+
+A native **PyQt6 Industrial Automated Optical Inspection (AOI) Workstation** (`app/desktop_demo.py`) supports all 15 MVTec AD categories and all 5 model paradigms with pre-calibrated optimal thresholds (Youden's J, F1-optimal, 95th percentile), zero-latency client re-rendering, and JSON/PNG quality audit export.
+
+### 1. Single Image Inspector (Dual View)
+Guided 4-step workflow with one-click sample chips and synchronized raw-vs-localized comparison:
+
+![AOI Dual View Inspector](assets/demo/01_aoi_dual_view.png)
+
+### 2. Multi-Panel Expert Inspection (4-Panel Grid)
+Full diagnostic breakdown (Raw Capture, Continuous Heatmap, Alpha-Blended Overlay, and Binary Defect Mask with bounding boxes) using PatchCore (ViT-Base) on textured surfaces:
+
+![AOI 4-Panel Expert Grid](assets/demo/02_aoi_quad_view_vit.png)
+
+### 3. Automated Conveyor Line Simulation
+Isolated production line simulator featuring real-time camera inspection stream, live KPI counters (`Total`, `Passed`, `Defect`, `Yield Rate`), and timestamped audit log:
+
+![AOI Automated Conveyor Simulation](assets/demo/03_aoi_conveyor_line.png)
+
+---
+
 ## Directory Structure
 
 ```text
@@ -311,6 +332,10 @@ Anomaly Detection/
 |   |-- demo.py                     # Unified demo entrypoint (Desktop GUI / Web)
 |   `-- desktop_demo.py             # Native PyQt6 Industrial AOI Workstation
 |-- assets/                         # Documentation materials & README figures
+|   |-- demo/                       # Interactive AOI Workstation screenshots
+|   |   |-- 01_aoi_dual_view.png
+|   |   |-- 02_aoi_quad_view_vit.png
+|   |   `-- 03_aoi_conveyor_line.png
 |   |-- eda_gallery.png             # Dataset exploration gallery
 |   |-- patchcore_localization_summary.png # Qualitative localization summary
 |   |-- capsule_localization.png    # Calibrated defect localization on capsule
